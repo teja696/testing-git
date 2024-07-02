@@ -1,0 +1,466 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_widget">
+    <sp_widget action="INSERT_OR_UPDATE">
+        <category>custom</category>
+        <client_script><![CDATA[api.controller = function(ActionParameterService, $rootScope, $scope, spModal, $http, $window, spUtil, $location, snAnalytics, i18n, $timeout) {
+        /* widget controller */
+        var c = this;
+
+        $scope.dropdownToggle = function(elem) {
+            setTimeout(function() {
+                $scope.$emit('action.toggle.dropdown', elem);
+            });
+        };
+
+        $scope.handleClick = function(action) {
+        c.assignDynamicParameters(action);
+            if (action.hasServerScript) {
+                if (action.reverseExecution == "0") {
+                    c.server.get({
+                        action: 'getServrOutput',
+                        actionId: action.actionId,
+                        actionInputs: JSON.stringify(action.serverScriptInputs)
+                    }).then(function(resp) {
+                        var actionFinalOutput = c.executeClientScript(action, resp.data.actionOutput);
+                        $rootScope.$broadcast('sn_ex_sp_action.result', actionFinalOutput);
+                    });
+                } else {
+
+                    new Promise(function(resolve, reject) {
+                        try {
+                            var clientScriptOutput = c.executeClientScript(action);
+                            resolve(clientScriptOutput);
+                        } catch (error) {
+                            reject(error);
+                        }
+                    }).then(function(clientScriptOutput) {
+                        action.serverScriptInputs['clientScriptOutput'] = clientScriptOutput;
+                        c.server.get({
+                            action: 'getServrOutput',
+                            actionId: action.actionId,
+                            actionInputs: JSON.stringify(action.serverScriptInputs)
+                        }).then(function(resp) {
+                            $rootScope.$broadcast('sn_ex_sp_action.result', resp.data.actionOutput);
+                        });
+                    });
+                }
+            } else {
+                var actionFinalOutput = c.executeClientScript(action);
+                $rootScope.$broadcast('sn_ex_sp_action.result', actionFinalOutput);
+            }
+        };
+
+        c.executeClientScript = function(action, serverScriptOutput) {
+            if (action.clientScript) {
+                var clientParams = Object.keys(action.clientParams).map(function(x) {
+                    return "var " + x + " = " + c.resolveClientParam(action.clientParams[x]) + ";";
+                }).join('\n');
+                var serverVal = serverScriptOutput ? "var serverScriptOutput=" + JSON.stringify(serverScriptOutput) + ";" : "";
+                var evalString = "return function($rootScope, $scope, spModal, $http, $window, spUtil, $location, snAnalytics, i18n, $timeout) {\
+                        var answer = '';\
+                        " + serverVal + clientParams + action.clientScript + "\
+                        return answer;};";
+                var fn = Function(evalString);
+                return fn()($rootScope, $scope, spModal, $http, $window, spUtil, $location, snAnalytics, i18n, $timeout);
+            }
+        };
+				
+    c.resolveClientParam = function(param) {
+        if (param.hasOwnProperty('param_type')) {
+            if (param.param_type == 'json')
+                                return param.value;
+            if (param.param_type == 'dynamic' && (Array.isArray(param.value) || param.value.prototype)) {
+                return JSON.stringify(param.value);
+            }
+                        return "'" + param.value + "'";
+                }
+                return "'" + param + "'";
+        };
+
+        c.getFlexDirection = function() {
+
+            var style = {
+                'flex-direction': 'row'
+            };
+            if (c.data.button_direction_reversed) {
+                style['flex-direction'] = 'row-reverse';
+            }
+            if ($window.innerWidth <= 500 && c.data.max_button_count > 1) {
+                style['flex-direction'] = 'column';
+            }
+            return style;
+        };
+
+        c.getDropdownWidth = function() {
+            var style = {};
+            if ($window.innerWidth <= 500 && c.data.max_button_count > 1) {
+                style.width = '-webkit-fill-available';
+                style['text-align'] = 'center';
+            }
+            return style;
+        };
+
+    c.emitWidgetVisibility = function() {
+        if ((c.data.actionButtons && c.data.actionButtons.length > 0) || (c.data.otherActions && c.data.otherActions.length > 0)) {
+            $scope.$emit('isActionWidgetVisible', {'visibility':true,'context': c.data.context});
+        } else {
+                $scope.$emit('isActionWidgetVisible', {'visibility':false,'context': c.data.context});
+            }
+        };
+
+       c.emitWidgetVisibility();
+
+    ActionParameterService.listen(function(e, data) {
+
+        // Set value of dynamic params for this action group
+        Object.keys(data).forEach(function(param) {
+            if (c.data.dynamicParameterMap.hasOwnProperty(param))
+                c.data.dynamicParameterMap[param] = data[param];
+        });
+    });
+
+    c.assignDynamicParameters = function(action) {
+        [action.clientParams, action.serverScriptInputs].map(function(paramsObj) {
+            Object.keys(c.data.dynamicParameterMap).forEach(function(param) {
+                if (paramsObj[param]) {
+                    paramsObj[param].value = c.data.dynamicParameterMap[param];
+                }
+            });
+        });
+
+    };
+    };]]></client_script>
+        <controller_as>c</controller_as>
+        <css>$sp-space--sm: 8px !default;
+$sp-space--xs: 4px !default;
+$sp-space--lg: 16px !default;
+
+
+.dropdown &gt; .dropdown-menu {
+  display:none;
+  background: $background-primary;
+  a {
+    color: $text-color;
+  }
+}
+
+.dropdown.open &gt; .dropdown-menu {
+  display:block;
+}
+
+.dropdown-menu {
+  :focus{
+    outline: 0.1rem inset $input-border-focus;
+    outline-offset: -1px;
+    border:none;
+    box-shadow: 0rem 0rem 0.5rem $input-border-focus;
+  }
+}
+
+.actions{
+  display:flex;
+  max-width: fit-content;
+}
+
+.text-wrap{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space: nowrap;
+}
+
+.action-container {
+  display:flex;
+  flex-direction:row;
+  column-gap: $sp-space--sm;
+  row-gap: $sp-space--lg;
+
+  &amp; &gt; *{
+    display:flex;
+    column-gap: $sp-space--sm;
+    row-gap: $sp-space--lg;
+  }
+
+  #action-dropdown {
+    a:hover {
+      cursor: pointer;
+    }
+  }
+}
+
+.icon {
+  margin-right: $sp-space--xs;
+  margin-top: auto;
+  margin-bottom: auto;
+}
+
+.btn-group &gt; .btn:first-child:not(:last-child):not(.dropdown-toggle){
+  border-bottom-right-radius: $border-radius-base !important;
+  border-top-right-radius: $border-radius-base !important;
+}
+
+@media screen and (max-width: 500px) {
+  .action-btn, .action-container{
+    display: flex;
+    justify-content: center;
+  }
+  .action-btn {
+    width: auto !important;
+  }
+  #action-dropdown{
+    flex-direction: column;
+  }
+  .action-container {
+    .more-btn{
+      margin-left: $sp-space--sm;
+    }
+    .actions{
+      max-width: none;
+    }
+  }
+
+</css>
+        <data_table>sp_instance</data_table>
+        <demo_data/>
+        <description>Widget that handles the load and display of Actions defined.</description>
+        <docs/>
+        <field_list/>
+        <has_preview>true</has_preview>
+        <id/>
+        <internal>false</internal>
+        <link><![CDATA[function link(scope, element, attrs, controller) {
+
+    // window resize should recalculate if elements are shrunk;
+    var resizeWindow = function() {
+        evaluateShrink(element, attrs);
+    };
+    var appWindow = angular.element(window);
+    appWindow.bind('resize', _.debounce(resizeWindow, 150));
+
+    // To show tooltip for ellipsis without page reload on enabling text-spacing for WCAG testing
+    scope.$watch(
+        function() {
+            return element.css("line-height");
+        },
+        function(newVal, oldVal) {
+            if (newVal !== oldVal) {
+                evaluateShrink(element, attrs);
+            }
+        });
+
+    scope.$on('action.toggle.dropdown', function(e) {
+        var actionList = $(elem).find('#actionList');
+        actionListFix(actionList);
+    });
+
+
+    function evaluateShrink(elem, attrs) {
+        if (elem && elem.length > 0) {
+            var actionList = $(elem).find('#actionList');
+            actionListFix(actionList);
+            primaryButtonFix($(elem).find('.button-container'), elem.parent());
+        }
+    }
+
+    function primaryButtonFix(elem, parent) {
+        var primaryAction = element.find('.primary-action');
+        primaryAction.css('width', '');
+
+        if (!parent || parent.width() < 1) {
+            primaryAction.css('width', '');
+            toggleTooltip(primaryAction);
+            return;
+        }
+
+        var ellipses = elem.parent().find('.dropdown');
+        var ellipsesWidth = ellipses.outerWidth();
+        if (ellipsesWidth > 0) {
+            ellipsesWidth += 8;
+        }
+        var width = elem.outerWidth();
+        var parentWidth = parent.width();
+        var primaryActionCount = primaryAction.length;
+        var newWidth = (parentWidth - ellipsesWidth - 8 * (primaryActionCount - 1)) / primaryActionCount;
+        if (newWidth < width) {
+            primaryAction.outerWidth(newWidth);
+        }
+        toggleTooltip(primaryAction);
+        return;
+    }
+
+    function actionListFix(elem) {
+        if (elem && elem.length && !isElementInViewport(elem)) {
+            var rect = elem[0].getBoundingClientRect();
+            if (rect.left <= 0) {
+
+                elem.attr('custom-width', elem[0].clientWidth + rect.left);
+                elem.width(function(index, currentWidth) {
+                    return currentWidth + rect.left;
+                });
+            }
+        } else {
+            if (elem.attr('custom-width')) {
+                elem.removeAttr('custom-width');
+                elem.css('width', '');
+            }
+        }
+        toggleTooltip(elem.find('a'));
+    }
+
+    function isElementInViewport(el) {
+
+        if (typeof jQuery === "function" && el instanceof jQuery) {
+            el = el[0];
+        }
+
+        var rect = el.getBoundingClientRect();
+        return (
+            rect.top >= 0 &&
+            rect.left >= 0 &&
+            rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) && /* or $(window).height() */
+            rect.right <= (window.innerWidth || document.documentElement.clientWidth) /* or $(window).width() */
+        );
+    }
+
+    function toggleTooltip(element) {
+        if (element) {
+            element.map(function(index, elem) {
+                var current = isEllipsisActive(elem);
+                var children = $(elem).children().map(function(ind, ele) {
+                    return isEllipsisActive(ele);
+                }).get().reduce(function(acc, val) {
+                    return acc || val;
+                }, false);
+                if (current || children) {
+                    $(elem).tooltip('enable');
+                } else {
+                    $(elem).tooltip('disable');
+                }
+            });
+        }
+    }
+
+    function isEllipsisActive(element) {
+        return element.clientWidth < element.scrollWidth;
+    }
+
+    function handleKeydowns(event) {
+        if (event.which == 13 || event.which === 32) {
+            event.preventDefault();
+            event.stopPropagation();
+            this.click();
+        }
+    }
+
+
+    setTimeout(function() {
+        $('[data-toggle-tooltip="tooltip"]').tooltip();
+        evaluateShrink(element, attrs);
+        $(element).find('a').keydown(handleKeydowns);
+    });
+
+    scope.$on("sn_ex_sp.reEvaluateActionsWidth", function() {
+        evaluateShrink(element, attrs);
+    });
+}]]></link>
+        <name>Copy of GitWidget</name>
+        <option_schema>[{"displayValue":"Action group","name":"action_group","section":"Data","label":"Action Group","type":"reference","value":"sn_ex_sp_action_group","ed":{"reference":"sn_ex_sp_action_group"}}]</option_schema>
+        <public>false</public>
+        <roles/>
+        <script><![CDATA[(function() {
+
+        var groupid = options.action_group;
+        data.context = options.context;
+        var gr = null;
+
+        if (!gs.nil(options.button_direction_reversed)) {
+            data.button_direction_reversed = options.button_direction_reversed;
+        }
+
+        if (!gs.nil(options.more_icon)) {
+            data.more_icon = options.more_icon;
+        } else {
+            data.more_icon = 'fa-ellipsis-v';
+        }
+
+        if (!gs.nil(options.primary_colored_button)) {
+            data.primary_colored_button = options.primary_colored_button;
+        }
+
+        if (!gs.nil(options.max_button_count) && options.max_button_count > 0) {
+            data.max_button_count = options.max_button_count - 1;
+        } else {
+            data.max_button_count = 0;
+        }
+
+        if (!gs.nil(options.table) && !gs.nil(options.context)) {
+            gr = new GlideRecord(options.table);
+            gr.get(options.context);
+            if (!gr.canRead())
+                gr = null;
+        }
+        var clientCall = new sn_ex_sp.ActionUtil(gr);
+        clientCall.toggleParameterTypes();
+        if (input && input.hasOwnProperty('action')) {
+            data.actionOutput = clientCall.executeActionServerScript(input.actionId, JSON.parse(input.actionInputs));
+            return;
+        }
+        var actions = clientCall.fetchActionsForGroup(groupid);
+        var formattedActions = clientCall.fetchFormattedActions(actions);
+        data.dynamicParameterMap = clientCall.dynamicParameterMap;
+
+        // Set value of dynamic params for this action group
+        Object.keys(options).forEach(function(param) {
+            if (data.dynamicParameterMap.hasOwnProperty(param)) {
+                data.dynamicParameterMap[param] = options[param];
+            }
+        });
+        var portalGr = $sp.getPortalRecord();
+        data.portalSysId = portalGr.getDisplayValue('sys_id');
+        data.portalSuffix = portalGr.getDisplayValue('url_suffix');
+
+        if (actions.length <= (data.max_button_count + 1)) {
+            data.actionButtons = formattedActions;
+            return;
+        } else {
+            if (data.max_button_count === 0 && formattedActions[0].primary === true) {
+                data.actionButtons = formattedActions.splice(0, 1);
+            } else {
+                data.actionButtons = formattedActions.splice(0, data.max_button_count);
+            }
+            data.otherActions = formattedActions;
+        }
+        
+    })();]]></script>
+        <servicenow>false</servicenow>
+        <sys_class_name>sp_widget</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2024-07-02 17:36:37</sys_created_on>
+        <sys_id>4b59619747030210d995cd9fe16d4372</sys_id>
+        <sys_mod_count>1</sys_mod_count>
+        <sys_name>Copy of GitWidget</sys_name>
+        <sys_package display_value="Testing Widget" source="x_682027_testing_w">4ee86d5747030210d995cd9fe16d43d3</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="Testing Widget">4ee86d5747030210d995cd9fe16d43d3</sys_scope>
+        <sys_update_name>sp_widget_4b59619747030210d995cd9fe16d4372</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2024-07-02 17:36:59</sys_updated_on>
+        <template><![CDATA[<div ng-if="options.action_group" class="action-container" ng-style="c.getFlexDirection()">
+        <div ng-if="data.actionButtons.length > 0" class="button-container" ng-style="c.getFlexDirection()">
+          <a ng-repeat="action in data.actionButtons" class="btn btn-default actions primary-action" ng-class="{'btn-primary' : action.primary && data.primary_colored_button, 'action-btn' : (data.max_button_count > 1) }" tabindex="0" role="button" ng-click="handleClick(action)"
+             data-container="body" data-title="{{action.actionName}}">
+            <span ng-if="action.actionIcon" class="fa fa-{{action.actionIcon}} icon"/>
+            <div class="text-wrap">{{action.actionName}}</div>
+          </a>
+        </div>
+        <div ng-if=" data.otherActions && data.otherActions.length > 0" class="dropdown btn-group" id="action-dropdown" ng-class="{'dropup' : (data.button_direction_reversed)}">
+          <button type="button" class="btn btn-default" ng-class="{'action-btn' : (data.max_button_count > 1) ,'more-btn' : (data.max_button_count==0) }"  ng-click="dropdownToggle(this)" data-toggle="dropdown" aria-haspopup="false" aria-label="${View menu}" data-toggle-tooltip="tooltip" data-placement="{{data.button_direction_reversed ? 'bottom' :'auto'}}" title="${View menu}" data-boundary="viewport" data-fallbackPlacement="flip">
+            <span class="fa {{data.more_icon}} icon-center"></span>
+          </button>
+          <ul class="dropdown-menu  {{data.button_direction_reversed ? 'dropdown-menu-reversed' :'dropdown-menu-right'}} " ng-style="c.getDropdownWidth()" id="actionList" role="menubar">
+            <li role="presentation" ng-repeat="action in data.otherActions">
+              <a tabindex="0" role="menuitem" ng-click ="handleClick(action)" class="text-wrap" data-title="{{action.actionName}}" aria-label="{{action.actionName}}">{{action.actionName}}</a>
+            </li>
+          </ul>
+        </div>
+      </div>]]></template>
+    </sp_widget>
+</record_update>
