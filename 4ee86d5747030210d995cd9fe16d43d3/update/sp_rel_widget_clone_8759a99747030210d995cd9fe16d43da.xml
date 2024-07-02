@@ -1,0 +1,451 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sp_rel_widget_clone">
+    <sp_rel_widget_clone action="INSERT_OR_UPDATE">
+        <child display_value="Copy of GitWidget">4b59619747030210d995cd9fe16d4372</child>
+        <cloned>2024-07-02 17:36:37</cloned>
+        <last_validated>2024-07-02 17:36:37</last_validated>
+        <parent display_value="Actions Widget">38a3a159530201101865ddeeff7b1263</parent>
+        <payload>&lt;?xml version="1.0" encoding="UTF-8"?&gt;&lt;sp_widget&gt;&lt;category&gt;custom&lt;/category&gt;&lt;client_script&gt;&lt;![CDATA[api.controller = function(ActionParameterService, $rootScope, $scope, spModal, $http, $window, spUtil, $location, snAnalytics, i18n, $timeout) {
+        /* widget controller */
+        var c = this;
+
+        $scope.dropdownToggle = function(elem) {
+            setTimeout(function() {
+                $scope.$emit('action.toggle.dropdown', elem);
+            });
+        };
+
+        $scope.handleClick = function(action) {
+        c.assignDynamicParameters(action);
+            if (action.hasServerScript) {
+                if (action.reverseExecution == "0") {
+                    c.server.get({
+                        action: 'getServrOutput',
+                        actionId: action.actionId,
+                        actionInputs: JSON.stringify(action.serverScriptInputs)
+                    }).then(function(resp) {
+                        var actionFinalOutput = c.executeClientScript(action, resp.data.actionOutput);
+                        $rootScope.$broadcast('sn_ex_sp_action.result', actionFinalOutput);
+                    });
+                } else {
+
+                    new Promise(function(resolve, reject) {
+                        try {
+                            var clientScriptOutput = c.executeClientScript(action);
+                            resolve(clientScriptOutput);
+                        } catch (error) {
+                            reject(error);
+                        }
+                    }).then(function(clientScriptOutput) {
+                        action.serverScriptInputs['clientScriptOutput'] = clientScriptOutput;
+                        c.server.get({
+                            action: 'getServrOutput',
+                            actionId: action.actionId,
+                            actionInputs: JSON.stringify(action.serverScriptInputs)
+                        }).then(function(resp) {
+                            $rootScope.$broadcast('sn_ex_sp_action.result', resp.data.actionOutput);
+                        });
+                    });
+                }
+            } else {
+                var actionFinalOutput = c.executeClientScript(action);
+                $rootScope.$broadcast('sn_ex_sp_action.result', actionFinalOutput);
+            }
+        };
+
+        c.executeClientScript = function(action, serverScriptOutput) {
+            if (action.clientScript) {
+                var clientParams = Object.keys(action.clientParams).map(function(x) {
+                    return "var " + x + " = " + c.resolveClientParam(action.clientParams[x]) + ";";
+                }).join('\n');
+                var serverVal = serverScriptOutput ? "var serverScriptOutput=" + JSON.stringify(serverScriptOutput) + ";" : "";
+                var evalString = "return function($rootScope, $scope, spModal, $http, $window, spUtil, $location, snAnalytics, i18n, $timeout) {\
+                        var answer = '';\
+                        " + serverVal + clientParams + action.clientScript + "\
+                        return answer;};";
+                var fn = Function(evalString);
+                return fn()($rootScope, $scope, spModal, $http, $window, spUtil, $location, snAnalytics, i18n, $timeout);
+            }
+        };
+				
+    c.resolveClientParam = function(param) {
+        if (param.hasOwnProperty('param_type')) {
+            if (param.param_type == 'json')
+                                return param.value;
+            if (param.param_type == 'dynamic' &amp;&amp; (Array.isArray(param.value) || param.value.prototype)) {
+                return JSON.stringify(param.value);
+            }
+                        return "'" + param.value + "'";
+                }
+                return "'" + param + "'";
+        };
+
+        c.getFlexDirection = function() {
+
+            var style = {
+                'flex-direction': 'row'
+            };
+            if (c.data.button_direction_reversed) {
+                style['flex-direction'] = 'row-reverse';
+            }
+            if ($window.innerWidth &lt;= 500 &amp;&amp; c.data.max_button_count &gt; 1) {
+                style['flex-direction'] = 'column';
+            }
+            return style;
+        };
+
+        c.getDropdownWidth = function() {
+            var style = {};
+            if ($window.innerWidth &lt;= 500 &amp;&amp; c.data.max_button_count &gt; 1) {
+                style.width = '-webkit-fill-available';
+                style['text-align'] = 'center';
+            }
+            return style;
+        };
+
+    c.emitWidgetVisibility = function() {
+        if ((c.data.actionButtons &amp;&amp; c.data.actionButtons.length &gt; 0) || (c.data.otherActions &amp;&amp; c.data.otherActions.length &gt; 0)) {
+            $scope.$emit('isActionWidgetVisible', {'visibility':true,'context': c.data.context});
+        } else {
+                $scope.$emit('isActionWidgetVisible', {'visibility':false,'context': c.data.context});
+            }
+        };
+
+       c.emitWidgetVisibility();
+
+    ActionParameterService.listen(function(e, data) {
+
+        // Set value of dynamic params for this action group
+        Object.keys(data).forEach(function(param) {
+            if (c.data.dynamicParameterMap.hasOwnProperty(param))
+                c.data.dynamicParameterMap[param] = data[param];
+        });
+    });
+
+    c.assignDynamicParameters = function(action) {
+        [action.clientParams, action.serverScriptInputs].map(function(paramsObj) {
+            Object.keys(c.data.dynamicParameterMap).forEach(function(param) {
+                if (paramsObj[param]) {
+                    paramsObj[param].value = c.data.dynamicParameterMap[param];
+                }
+            });
+        });
+
+    };
+    };]]&gt;&lt;/client_script&gt;&lt;controller_as&gt;c&lt;/controller_as&gt;&lt;css&gt;$sp-space--sm: 8px !default;
+$sp-space--xs: 4px !default;
+$sp-space--lg: 16px !default;
+
+
+.dropdown &amp;gt; .dropdown-menu {
+  display:none;
+  background: $background-primary;
+  a {
+    color: $text-color;
+  }
+}
+
+.dropdown.open &amp;gt; .dropdown-menu {
+  display:block;
+}
+
+.dropdown-menu {
+  :focus{
+    outline: 0.1rem inset $input-border-focus;
+    outline-offset: -1px;
+    border:none;
+    box-shadow: 0rem 0rem 0.5rem $input-border-focus;
+  }
+}
+
+.actions{
+  display:flex;
+  max-width: fit-content;
+}
+
+.text-wrap{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space: nowrap;
+}
+
+.action-container {
+  display:flex;
+  flex-direction:row;
+  column-gap: $sp-space--sm;
+  row-gap: $sp-space--lg;
+
+  &amp;amp; &amp;gt; *{
+    display:flex;
+    column-gap: $sp-space--sm;
+    row-gap: $sp-space--lg;
+  }
+
+  #action-dropdown {
+    a:hover {
+      cursor: pointer;
+    }
+  }
+}
+
+.icon {
+  margin-right: $sp-space--xs;
+  margin-top: auto;
+  margin-bottom: auto;
+}
+
+.btn-group &amp;gt; .btn:first-child:not(:last-child):not(.dropdown-toggle){
+  border-bottom-right-radius: $border-radius-base !important;
+  border-top-right-radius: $border-radius-base !important;
+}
+
+@media screen and (max-width: 500px) {
+  .action-btn, .action-container{
+    display: flex;
+    justify-content: center;
+  }
+  .action-btn {
+    width: auto !important;
+  }
+  #action-dropdown{
+    flex-direction: column;
+  }
+  .action-container {
+    .more-btn{
+      margin-left: $sp-space--sm;
+    }
+    .actions{
+      max-width: none;
+    }
+  }
+
+&lt;/css&gt;&lt;data_table&gt;sp_instance&lt;/data_table&gt;&lt;demo_data/&gt;&lt;description&gt;Widget that handles the load and display of Actions defined.&lt;/description&gt;&lt;docs/&gt;&lt;field_list/&gt;&lt;has_preview&gt;true&lt;/has_preview&gt;&lt;id&gt;action-widget&lt;/id&gt;&lt;internal&gt;false&lt;/internal&gt;&lt;link&gt;&lt;![CDATA[function link(scope, element, attrs, controller) {
+
+    // window resize should recalculate if elements are shrunk;
+    var resizeWindow = function() {
+        evaluateShrink(element, attrs);
+    };
+    var appWindow = angular.element(window);
+    appWindow.bind('resize', _.debounce(resizeWindow, 150));
+
+    // To show tooltip for ellipsis without page reload on enabling text-spacing for WCAG testing
+    scope.$watch(
+        function() {
+            return element.css("line-height");
+        },
+        function(newVal, oldVal) {
+            if (newVal !== oldVal) {
+                evaluateShrink(element, attrs);
+            }
+        });
+
+    scope.$on('action.toggle.dropdown', function(e) {
+        var actionList = $(elem).find('#actionList');
+        actionListFix(actionList);
+    });
+
+
+    function evaluateShrink(elem, attrs) {
+        if (elem &amp;&amp; elem.length &gt; 0) {
+            var actionList = $(elem).find('#actionList');
+            actionListFix(actionList);
+            primaryButtonFix($(elem).find('.button-container'), elem.parent());
+        }
+    }
+
+    function primaryButtonFix(elem, parent) {
+        var primaryAction = element.find('.primary-action');
+        primaryAction.css('width', '');
+
+        if (!parent || parent.width() &lt; 1) {
+            primaryAction.css('width', '');
+            toggleTooltip(primaryAction);
+            return;
+        }
+
+        var ellipses = elem.parent().find('.dropdown');
+        var ellipsesWidth = ellipses.outerWidth();
+        if (ellipsesWidth &gt; 0) {
+            ellipsesWidth += 8;
+        }
+        var width = elem.outerWidth();
+        var parentWidth = parent.width();
+        var primaryActionCount = primaryAction.length;
+        var newWidth = (parentWidth - ellipsesWidth - 8 * (primaryActionCount - 1)) / primaryActionCount;
+        if (newWidth &lt; width) {
+            primaryAction.outerWidth(newWidth);
+        }
+        toggleTooltip(primaryAction);
+        return;
+    }
+
+    function actionListFix(elem) {
+        if (elem &amp;&amp; elem.length &amp;&amp; !isElementInViewport(elem)) {
+            var rect = elem[0].getBoundingClientRect();
+            if (rect.left &lt;= 0) {
+
+                elem.attr('custom-width', elem[0].clientWidth + rect.left);
+                elem.width(function(index, currentWidth) {
+                    return currentWidth + rect.left;
+                });
+            }
+        } else {
+            if (elem.attr('custom-width')) {
+                elem.removeAttr('custom-width');
+                elem.css('width', '');
+            }
+        }
+        toggleTooltip(elem.find('a'));
+    }
+
+    function isElementInViewport(el) {
+
+        if (typeof jQuery === "function" &amp;&amp; el instanceof jQuery) {
+            el = el[0];
+        }
+
+        var rect = el.getBoundingClientRect();
+        return (
+            rect.top &gt;= 0 &amp;&amp;
+            rect.left &gt;= 0 &amp;&amp;
+            rect.bottom &lt;= (window.innerHeight || document.documentElement.clientHeight) &amp;&amp; /* or $(window).height() */
+            rect.right &lt;= (window.innerWidth || document.documentElement.clientWidth) /* or $(window).width() */
+        );
+    }
+
+    function toggleTooltip(element) {
+        if (element) {
+            element.map(function(index, elem) {
+                var current = isEllipsisActive(elem);
+                var children = $(elem).children().map(function(ind, ele) {
+                    return isEllipsisActive(ele);
+                }).get().reduce(function(acc, val) {
+                    return acc || val;
+                }, false);
+                if (current || children) {
+                    $(elem).tooltip('enable');
+                } else {
+                    $(elem).tooltip('disable');
+                }
+            });
+        }
+    }
+
+    function isEllipsisActive(element) {
+        return element.clientWidth &lt; element.scrollWidth;
+    }
+
+    function handleKeydowns(event) {
+        if (event.which == 13 || event.which === 32) {
+            event.preventDefault();
+            event.stopPropagation();
+            this.click();
+        }
+    }
+
+
+    setTimeout(function() {
+        $('[data-toggle-tooltip="tooltip"]').tooltip();
+        evaluateShrink(element, attrs);
+        $(element).find('a').keydown(handleKeydowns);
+    });
+
+    scope.$on("sn_ex_sp.reEvaluateActionsWidth", function() {
+        evaluateShrink(element, attrs);
+    });
+}]]&gt;&lt;/link&gt;&lt;name&gt;Actions Widget&lt;/name&gt;&lt;option_schema&gt;[{"displayValue":"Action group","name":"action_group","section":"Data","label":"Action Group","type":"reference","value":"sn_ex_sp_action_group","ed":{"reference":"sn_ex_sp_action_group"}}]&lt;/option_schema&gt;&lt;public&gt;false&lt;/public&gt;&lt;roles/&gt;&lt;script&gt;&lt;![CDATA[(function() {
+
+        var groupid = options.action_group;
+        data.context = options.context;
+        var gr = null;
+
+        if (!gs.nil(options.button_direction_reversed)) {
+            data.button_direction_reversed = options.button_direction_reversed;
+        }
+
+        if (!gs.nil(options.more_icon)) {
+            data.more_icon = options.more_icon;
+        } else {
+            data.more_icon = 'fa-ellipsis-v';
+        }
+
+        if (!gs.nil(options.primary_colored_button)) {
+            data.primary_colored_button = options.primary_colored_button;
+        }
+
+        if (!gs.nil(options.max_button_count) &amp;&amp; options.max_button_count &gt; 0) {
+            data.max_button_count = options.max_button_count - 1;
+        } else {
+            data.max_button_count = 0;
+        }
+
+        if (!gs.nil(options.table) &amp;&amp; !gs.nil(options.context)) {
+            gr = new GlideRecord(options.table);
+            gr.get(options.context);
+            if (!gr.canRead())
+                gr = null;
+        }
+        var clientCall = new sn_ex_sp.ActionUtil(gr);
+        clientCall.toggleParameterTypes();
+        if (input &amp;&amp; input.hasOwnProperty('action')) {
+            data.actionOutput = clientCall.executeActionServerScript(input.actionId, JSON.parse(input.actionInputs));
+            return;
+        }
+        var actions = clientCall.fetchActionsForGroup(groupid);
+        var formattedActions = clientCall.fetchFormattedActions(actions);
+        data.dynamicParameterMap = clientCall.dynamicParameterMap;
+
+        // Set value of dynamic params for this action group
+        Object.keys(options).forEach(function(param) {
+            if (data.dynamicParameterMap.hasOwnProperty(param)) {
+                data.dynamicParameterMap[param] = options[param];
+            }
+        });
+        var portalGr = $sp.getPortalRecord();
+        data.portalSysId = portalGr.getDisplayValue('sys_id');
+        data.portalSuffix = portalGr.getDisplayValue('url_suffix');
+
+        if (actions.length &lt;= (data.max_button_count + 1)) {
+            data.actionButtons = formattedActions;
+            return;
+        } else {
+            if (data.max_button_count === 0 &amp;&amp; formattedActions[0].primary === true) {
+                data.actionButtons = formattedActions.splice(0, 1);
+            } else {
+                data.actionButtons = formattedActions.splice(0, data.max_button_count);
+            }
+            data.otherActions = formattedActions;
+        }
+        
+    })();]]&gt;&lt;/script&gt;&lt;servicenow&gt;false&lt;/servicenow&gt;&lt;sys_class_name&gt;sp_widget&lt;/sys_class_name&gt;&lt;sys_created_by&gt;admin&lt;/sys_created_by&gt;&lt;sys_created_on&gt;2022-06-06 10:17:39&lt;/sys_created_on&gt;&lt;sys_id&gt;38a3a159530201101865ddeeff7b1263&lt;/sys_id&gt;&lt;sys_mod_count&gt;421&lt;/sys_mod_count&gt;&lt;sys_name&gt;Actions Widget&lt;/sys_name&gt;&lt;sys_package display_value="Employee Center" source="sn_ex_sp"&gt;4249e63a28d54d61bb6fbf61fd86cccb&lt;/sys_package&gt;&lt;sys_policy&gt;read&lt;/sys_policy&gt;&lt;sys_scope display_value="Employee Center"&gt;4249e63a28d54d61bb6fbf61fd86cccb&lt;/sys_scope&gt;&lt;sys_update_name&gt;sp_widget_38a3a159530201101865ddeeff7b1263&lt;/sys_update_name&gt;&lt;sys_updated_by&gt;admin&lt;/sys_updated_by&gt;&lt;sys_updated_on&gt;2023-09-20 01:25:07&lt;/sys_updated_on&gt;&lt;template&gt;&lt;![CDATA[&lt;div ng-if="options.action_group" class="action-container" ng-style="c.getFlexDirection()"&gt;
+        &lt;div ng-if="data.actionButtons.length &gt; 0" class="button-container" ng-style="c.getFlexDirection()"&gt;
+          &lt;a ng-repeat="action in data.actionButtons" class="btn btn-default actions primary-action" ng-class="{'btn-primary' : action.primary &amp;&amp; data.primary_colored_button, 'action-btn' : (data.max_button_count &gt; 1) }" tabindex="0" role="button" ng-click="handleClick(action)"
+             data-container="body" data-title="{{action.actionName}}"&gt;
+            &lt;span ng-if="action.actionIcon" class="fa fa-{{action.actionIcon}} icon"/&gt;
+            &lt;div class="text-wrap"&gt;{{action.actionName}}&lt;/div&gt;
+          &lt;/a&gt;
+        &lt;/div&gt;
+        &lt;div ng-if=" data.otherActions &amp;&amp; data.otherActions.length &gt; 0" class="dropdown btn-group" id="action-dropdown" ng-class="{'dropup' : (data.button_direction_reversed)}"&gt;
+          &lt;button type="button" class="btn btn-default" ng-class="{'action-btn' : (data.max_button_count &gt; 1) ,'more-btn' : (data.max_button_count==0) }"  ng-click="dropdownToggle(this)" data-toggle="dropdown" aria-haspopup="false" aria-label="${View menu}" data-toggle-tooltip="tooltip" data-placement="{{data.button_direction_reversed ? 'bottom' :'auto'}}" title="${View menu}" data-boundary="viewport" data-fallbackPlacement="flip"&gt;
+            &lt;span class="fa {{data.more_icon}} icon-center"&gt;&lt;/span&gt;
+          &lt;/button&gt;
+          &lt;ul class="dropdown-menu  {{data.button_direction_reversed ? 'dropdown-menu-reversed' :'dropdown-menu-right'}} " ng-style="c.getDropdownWidth()" id="actionList" role="menubar"&gt;
+            &lt;li role="presentation" ng-repeat="action in data.otherActions"&gt;
+              &lt;a tabindex="0" role="menuitem" ng-click ="handleClick(action)" class="text-wrap" data-title="{{action.actionName}}" aria-label="{{action.actionName}}"&gt;{{action.actionName}}&lt;/a&gt;
+            &lt;/li&gt;
+          &lt;/ul&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;]]&gt;&lt;/template&gt;&lt;/sp_widget&gt;</payload>
+        <sys_class_name>sp_rel_widget_clone</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2024-07-02 17:36:37</sys_created_on>
+        <sys_id>8759a99747030210d995cd9fe16d43da</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>4b59619747030210d995cd9fe16d4372</sys_name>
+        <sys_package display_value="Testing Widget" source="x_682027_testing_w">4ee86d5747030210d995cd9fe16d43d3</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="Testing Widget">4ee86d5747030210d995cd9fe16d43d3</sys_scope>
+        <sys_update_name>sp_rel_widget_clone_8759a99747030210d995cd9fe16d43da</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2024-07-02 17:36:37</sys_updated_on>
+    </sp_rel_widget_clone>
+</record_update>
